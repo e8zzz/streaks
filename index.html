@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Streaks</title>
+<meta name="theme-color" content="#0a0a0a">
+<link rel="manifest" href="./manifest.json">
+<link rel="apple-touch-icon" href="./icon.png">
+<link rel="icon" type="image/png" href="./icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Streaks">
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+html, body {
+    width: 100%;
+    height: 100%;
+    background: #0a0a0a;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    touch-action: manipulation;
+    color: #ffffff;
+}
+
+/* subtle grain texture like the reference */
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+#app {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    z-index: 2;
+}
+
+#mainView {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    padding-top: max(20px, env(safe-area-inset-top));
+    position: relative;
+    overflow: hidden;
+}
+
+.header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 6px 0;
+    position: relative;
+    z-index: 5;
+}
+
+.iconBtn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    border: none;
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.iconBtn:active {
+    transform: scale(0.9);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.iconBtn svg {
+    width: 20px;
+    height: 20px;
+}
+
+.habitTitle {
+    position: absolute;
+    left: 50%;
+    top: 22px;
+    transform: translateX(-50%);
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.92);
+    white-space: nowrap;
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+}
+
+.habitTitle.done {
+    text-decoration: line-through;
+    text-decoration-thickness: 1.5px;
+    opacity: 0.55;
+}
+
+/* day row */
+.dayRow {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 56px;
+    width: 100%;
+}
+
+.dayItem {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.dayBadge {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.07);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+}
+
+.dayBadge.completed {
+    background: #f5f5f5;
+}
+
+.dayBadge svg {
+    width: 15px;
+    height: 15px;
+    opacity: 0;
+    transform: scale(0.4);
+    transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.dayBadge.completed svg {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.dayLetter {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    padding-bottom: 6px;
+    border-bottom: 2px solid transparent;
+}
+
+.dayItem.today .dayLetter {
+    color: rgba(255, 255, 255, 0.9);
+    border-bottom-color: #ff9f0a;
+}
+
+.moreDots {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    cursor: pointer;
+}
+
+.moreDots span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Main circle */
+.circleWrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+
+.mainCircle {
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 40%, #1c1c1c, #0d0d0d 75%);
+    border: none;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mainCircle::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #ffffff, #f0f0f0 70%);
+    opacity: 0;
+    transition: opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    box-shadow: 0 0 60px rgba(255,255,255,0.25);
+}
+
+.mainCircle.completed::before {
+    opacity: 1;
+}
+
+.mainCircle:active:not(.completed) {
+    transform: scale(0.9);
+}
+
+.mainCircle.popping {
+    animation: circlePop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes circlePop {
+    0% { transform: scale(0.9); }
+    50% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
+
+.checkWrap {
+    position: relative;
+    z-index: 2;
+    width: 96px;
+    height: 96px;
+    opacity: 0;
+    transform: scale(0.3) rotate(-8deg);
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.mainCircle.completed .checkWrap {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+}
+
+.checkWrap svg {
+    width: 100%;
+    height: 100%;
+}
+
+.circleLabel {
+    position: absolute;
+    z-index: 2;
+    font-size: 27px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #ffffff;
+    text-align: center;
+    padding: 0 30px;
+    line-height: 1.2;
+    opacity: 1;
+    transform: scale(1);
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+}
+
+.mainCircle.completed .circleLabel {
+    opacity: 0;
+    transform: scale(0.5);
+}
+
+/* Bottom info */
+.bottomInfo {
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+    text-align: center;
+}
+
+.streakCount {
+    font-size: 15px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 0.3px;
+}
+
+.streakCount b {
+    color: #ffffff;
+    font-weight: 700;
+}
+
+/* Particles */
+@keyframes burst {
+    0% { opacity: 1; transform: translate(0,0) scale(1); }
+    100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(0.3); }
+}
+
+.particle {
+    position: fixed;
+    pointer-events: none;
+    z-index: 50;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #fff;
+    animation: burst 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Modal (settings / all streaks) */
+#modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+}
+
+#modal.open { display: flex; }
+
+.modalContent {
+    background: #161616;
+    border-radius: 26px 26px 0 0;
+    padding: 28px 22px max(28px, env(safe-area-inset-bottom));
+    width: 100%;
+    max-width: 480px;
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes slideUp {
+    from { opacity: 0; transform: translateY(50px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.modalHeader {
+    font-size: 20px;
+    font-weight: 700;
+    margin-bottom: 20px;
+    letter-spacing: -0.3px;
+}
+
+.streakList {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 16px;
+    scrollbar-width: none;
+}
+.streakList::-webkit-scrollbar { display: none; }
+
+.streakItem {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 14px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1.5px solid transparent;
+}
+
+.streakItem:active { transform: scale(0.97); }
+.streakItem.active {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.18);
+}
+
+.streakItemName {
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.streakItemDate {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 12px;
+    margin-top: 3px;
+}
+
+.streakItemRight {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.streakItemNum {
+    font-size: 17px;
+    font-weight: 700;
+}
+
+.streakItemDaysLabel {
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 11px;
+}
+
+.deleteBtn {
+    color: #ff6b6b;
+    font-size: 20px;
+    padding: 6px 10px;
+    background: none;
+    border: none;
+    margin-left: 8px;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.deleteBtn:active { transform: scale(0.85); }
+
+.inputGroup { display: flex; gap: 10px; margin-bottom: 14px; }
+
+#streakNameInput {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    padding: 13px 16px;
+    color: white;
+    font-size: 16px;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+    font-family: inherit;
+}
+#streakNameInput::placeholder { color: rgba(255, 255, 255, 0.3); }
+
+.btnGroup { display: flex; gap: 10px; }
+button { -webkit-appearance: none; appearance: none; outline: none; border: none; cursor: pointer; font-family: inherit; }
+
+.btn {
+    flex: 1;
+    padding: 14px 20px;
+    border-radius: 14px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.btnPrimary { background: #ffffff; color: #000000; }
+.btnPrimary:active { transform: scale(0.97); }
+.btnSecondary { background: rgba(255, 255, 255, 0.08); color: white; border: 1px solid rgba(255, 255, 255, 0.12); }
+.btnSecondary:active { transform: scale(0.97); }
+
+.emptyState {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.4);
+    padding: 50px 20px;
+    font-size: 15px;
+}
+
+/* day detail modal */
+.dayDetailHeader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.backBtn {
+    background: none; border: none; color: white; font-size: 20px;
+    padding: 6px; -webkit-appearance: none; appearance: none;
+}
+.backBtn:active { opacity: 0.6; }
+
+.dayDetailTitle { font-size: 15px; color: rgba(255,255,255,0.55); font-weight: 600; }
+
+.detailCircleWrap {
+    display: flex;
+    justify-content: center;
+    padding: 30px 0 10px;
+}
+
+.detailCircle {
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.10), rgba(255,255,255,0.03) 60%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.detailCircle::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #ffffff, #f0f0f0 70%);
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+.detailCircle.completed::before { opacity: 1; }
+.detailCircle:active { transform: scale(0.92); }
+
+.detailCheckWrap {
+    position: relative;
+    z-index: 2;
+    width: 56px;
+    height: 56px;
+    opacity: 0;
+    transform: scale(0.3);
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.detailCircle.completed .detailCheckWrap { opacity: 1; transform: scale(1); }
+.detailCheckWrap svg { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+
+<div id="app">
+    <div id="mainView">
+        <div class="header">
+            <button class="iconBtn" id="addBtn" aria-label="Add streak">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <div class="habitTitle" id="habitTitle">LOADING</div>
+            <button class="iconBtn" id="allBtn" aria-label="All streaks">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M4 7H20M4 12H14M4 17H20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="18" cy="12" r="1.5" fill="currentColor"/></svg>
+            </button>
+        </div>
+
+        <div class="dayRow" id="dayRow"></div>
+
+        <div class="circleWrap">
+            <div class="mainCircle" id="mainCircle">
+                <div class="circleLabel" id="circleLabel"></div>
+                <div class="checkWrap">
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M3.5 12.5L9 18.5L20.5 5" stroke="#0a0a0a" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottomInfo">
+            <div class="streakCount"><b id="streakNum">0</b> Day Streak</div>
+        </div>
+    </div>
+</div>
+
+<div id="modal">
+    <div class="modalContent" id="modalContent"></div>
+</div>
+
+<script>
+let audioCtx = null;
+const streaks = {};
+let currentStreakId = null;
+let selectedDate = null;
+
+const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none"><path d="M3.5 12.5L9 18.5L20.5 5" stroke="#0a0a0a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SMALL_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none"><path d="M3.5 12.5L9 18.5L20.5 5" stroke="#0a0a0a" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+function todayStr() {
+    return new Date().toISOString().split('T')[0];
+}
+
+function loadData() {
+    try {
+        const data = JSON.parse(localStorage.getItem('streak-tracker-data'));
+        if (data && data.streaks) {
+            Object.assign(streaks, data.streaks);
+            currentStreakId = data.currentStreakId;
+        }
+    } catch (e) { }
+}
+
+function saveData() {
+    localStorage.setItem('streak-tracker-data', JSON.stringify({ streaks, currentStreakId }));
+}
+
+function initializeIfEmpty() {
+    if (Object.keys(streaks).length === 0) {
+        const id = Date.now().toString();
+        streaks[id] = { id, name: 'New Streak', count: 0, createdAt: new Date().toISOString(), completedDays: [] };
+        currentStreakId = id;
+        saveData();
+    }
+    if (!currentStreakId || !streaks[currentStreakId]) {
+        currentStreakId = Object.keys(streaks)[0];
+    }
+}
+
+function playCompleteSound() {
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const now = audioCtx.currentTime;
+        const freqs = [660, 880, 1180];
+        freqs.forEach((freq, i) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + i * 0.07);
+            gain.gain.setValueAtTime(0.22, now + i * 0.07);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.07 + 0.25);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(now + i * 0.07); osc.stop(now + i * 0.07 + 0.25);
+        });
+    } catch (e) { }
+}
+
+function playUncheckSound() {
+    try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(420, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(280, audioCtx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + 0.15);
+    } catch (e) { }
+}
+
+function vibrate(pattern) {
+    if (navigator.vibrate) navigator.vibrate(pattern || [20, 10, 20]);
+}
+
+function burstParticles(originEl) {
+    const rect = originEl.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    for (let i = 0; i < 16; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        const angle = (i / 16) * Math.PI * 2 + Math.random() * 0.3;
+        const distance = 90 + Math.random() * 60;
+        p.style.setProperty('--tx', Math.cos(angle) * distance + 'px');
+        p.style.setProperty('--ty', Math.sin(angle) * distance + 'px');
+        p.style.left = cx + 'px';
+        p.style.top = cy + 'px';
+        document.body.appendChild(p);
+        setTimeout(() => p.remove(), 700);
+    }
+}
+
+function isCompletedToday() {
+    const streak = streaks[currentStreakId];
+    if (!streak || !Array.isArray(streak.completedDays)) return false;
+    return streak.completedDays.includes(todayStr());
+}
+
+function renderDayRow() {
+    const row = document.getElementById('dayRow');
+    row.innerHTML = '';
+    const streak = streaks[currentStreakId];
+    if (!streak) return;
+
+    const dayLetters = ['SO', 'MO', 'DI', 'MI', 'DO', 'FR', 'SA'];
+    const today = new Date();
+
+    for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        const isToday = i === 0;
+        const completed = Array.isArray(streak.completedDays) && streak.completedDays.includes(dateStr);
+
+        const item = document.createElement('div');
+        item.className = 'dayItem' + (isToday ? ' today' : '');
+
+        const badge = document.createElement('div');
+        badge.className = 'dayBadge' + (completed ? ' completed' : '');
+        badge.innerHTML = SMALL_CHECK_SVG;
+        badge.addEventListener('click', () => {
+            if (isToday) {
+                toggleToday();
+            } else {
+                openDayDetail(dateStr);
+            }
+        });
+
+        const letter = document.createElement('div');
+        letter.className = 'dayLetter';
+        letter.textContent = isToday ? 'HEUTE' : dayLetters[date.getDay()];
+
+        item.appendChild(badge);
+        item.appendChild(letter);
+        row.appendChild(item);
+    }
+}
+
+function renderMain() {
+    const streak = streaks[currentStreakId];
+    if (!streak) return;
+
+    const titleEl = document.getElementById('habitTitle');
+    titleEl.textContent = streak.name.toUpperCase() + '?';
+
+    const labelEl = document.getElementById('circleLabel');
+    const niceName = streak.name.charAt(0).toUpperCase() + streak.name.slice(1);
+    labelEl.textContent = niceName + '?';
+
+    document.getElementById('streakNum').textContent = streak.count;
+
+    const circle = document.getElementById('mainCircle');
+    const completed = isCompletedToday();
+    circle.classList.toggle('completed', completed);
+    titleEl.classList.toggle('done', completed);
+
+    renderDayRow();
+}
+
+function toggleToday(fromMainCircle) {
+    const streak = streaks[currentStreakId];
+    if (!streak) return;
+    if (!Array.isArray(streak.completedDays)) streak.completedDays = [];
+
+    const today = todayStr();
+    const idx = streak.completedDays.indexOf(today);
+    const circle = document.getElementById('mainCircle');
+
+    if (idx === -1) {
+        streak.completedDays.push(today);
+        streak.count++;
+        playCompleteSound();
+        vibrate([20, 10, 20]);
+        burstParticles(circle);
+        circle.classList.add('popping');
+        setTimeout(() => circle.classList.remove('popping'), 500);
+    } else {
+        streak.completedDays.splice(idx, 1);
+        streak.count = Math.max(0, streak.count - 1);
+        playUncheckSound();
+        vibrate([15]);
+    }
+
+    saveData();
+    renderMain();
+}
+
+document.getElementById('mainCircle').addEventListener('click', () => toggleToday(true));
+
+document.getElementById('addBtn').addEventListener('click', () => {
+    vibrate([15]);
+    showAddModal();
+});
+
+document.getElementById('allBtn').addEventListener('click', () => {
+    vibrate([15]);
+    showAllModal();
+});
+
+function showAddModal() {
+    const modal = document.getElementById('modal');
+    const content = document.getElementById('modalContent');
+    content.innerHTML = `
+        <div class="modalHeader">New Streak</div>
+        <div class="inputGroup">
+            <input type="text" id="streakNameInput" placeholder="Streak name..." maxlength="40" autofocus>
+        </div>
+        <div class="btnGroup">
+            <button class="btn btnSecondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btnPrimary" onclick="createNewStreak()">Create</button>
+        </div>
+    `;
+    modal.classList.add('open');
+    setTimeout(() => document.getElementById('streakNameInput').focus(), 100);
+}
+
+function showAllModal() {
+    const modal = document.getElementById('modal');
+    const content = document.getElementById('modalContent');
+    const list = Object.values(streaks).sort((a, b) => b.count - a.count);
+
+    let html = '<div class="modalHeader">All Streaks</div><div class="streakList">';
+
+    if (list.length === 0) {
+        html += '<div class="emptyState">No streaks yet.</div>';
+    } else {
+        list.forEach(s => {
+            const active = s.id === currentStreakId;
+            const created = new Date(s.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            html += `
+                <div class="streakItem ${active ? 'active' : ''}" onclick="selectStreak('${s.id}')">
+                    <div>
+                        <div class="streakItemName">${s.name}</div>
+                        <div class="streakItemDate">Started ${created}</div>
+                    </div>
+                    <div class="streakItemRight">
+                        <div>
+                            <div class="streakItemNum">${s.count}</div>
+                            <div class="streakItemDaysLabel">days</div>
+                        </div>
+                        <button class="deleteBtn" onclick="deleteStreak('${s.id}', event)">×</button>
+                    </div>
+                </div>`;
+        });
+    }
+    html += '</div>';
+    html += '<div class="inputGroup"><input type="text" id="streakNameInput" placeholder="Add new streak..." maxlength="40"></div>';
+    html += '<div class="btnGroup"><button class="btn btnSecondary" onclick="closeModal()">Close</button><button class="btn btnPrimary" onclick="createNewStreakFromList()">Create</button></div>';
+
+    content.innerHTML = html;
+    modal.classList.add('open');
+}
+
+function openDayDetail(dateStr) {
+    selectedDate = dateStr;
+    const d = new Date(dateStr + 'T00:00:00Z');
+    const dObj = new Date(d.getTime() + d.getTimezoneOffset() * 60000);
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const label = `${dayNames[dObj.getDay()]}, ${monthNames[dObj.getMonth()]} ${dObj.getDate()}`;
+
+    const streak = streaks[currentStreakId];
+    const completed = Array.isArray(streak.completedDays) && streak.completedDays.includes(dateStr);
+
+    const modal = document.getElementById('modal');
+    const content = document.getElementById('modalContent');
+    content.innerHTML = `
+        <div class="dayDetailHeader">
+            <button class="backBtn" onclick="closeModal()">←</button>
+            <div class="dayDetailTitle">${label}</div>
+        </div>
+        <div class="detailCircleWrap">
+            <div class="detailCircle ${completed ? 'completed' : ''}" id="detailCircle">
+                <div class="detailCheckWrap">${CHECK_SVG}</div>
+            </div>
+        </div>
+        <div class="btnGroup" style="margin-top: 10px;">
+            <button class="btn btnSecondary" onclick="closeModal()">Done</button>
+        </div>
+    `;
+    modal.classList.add('open');
+
+    setTimeout(() => {
+        const dc = document.getElementById('detailCircle');
+        if (dc) dc.addEventListener('click', toggleSelectedDate);
+    }, 50);
+}
+
+function toggleSelectedDate() {
+    if (!selectedDate) return;
+    const streak = streaks[currentStreakId];
+    if (!Array.isArray(streak.completedDays)) streak.completedDays = [];
+
+    const idx = streak.completedDays.indexOf(selectedDate);
+    const dc = document.getElementById('detailCircle');
+
+    if (idx === -1) {
+        streak.completedDays.push(selectedDate);
+        playCompleteSound();
+        vibrate([20, 10, 20]);
+        if (dc) burstParticles(dc);
+    } else {
+        streak.completedDays.splice(idx, 1);
+        playUncheckSound();
+        vibrate([15]);
+    }
+
+    if (dc) dc.classList.toggle('completed');
+    saveData();
+    renderMain();
+}
+
+function selectStreak(id) {
+    currentStreakId = id;
+    saveData();
+    renderMain();
+    closeModal();
+}
+
+function createNewStreak() {
+    const input = document.getElementById('streakNameInput');
+    const name = input.value.trim();
+    if (!name) return;
+    const id = Date.now().toString();
+    streaks[id] = { id, name, count: 0, createdAt: new Date().toISOString(), completedDays: [] };
+    currentStreakId = id;
+    saveData();
+    renderMain();
+    closeModal();
+}
+
+function createNewStreakFromList() {
+    const input = document.getElementById('streakNameInput');
+    const name = input.value.trim();
+    if (!name) return;
+    const id = Date.now().toString();
+    streaks[id] = { id, name, count: 0, createdAt: new Date().toISOString(), completedDays: [] };
+    currentStreakId = id;
+    saveData();
+    renderMain();
+    closeModal();
+}
+
+function deleteStreak(id, event) {
+    event.stopPropagation();
+    if (Object.keys(streaks).length === 1) {
+        alert('You must have at least one streak!');
+        return;
+    }
+    delete streaks[id];
+    if (currentStreakId === id) currentStreakId = Object.keys(streaks)[0];
+    saveData();
+    showAllModal();
+}
+
+function closeModal() {
+    document.getElementById('modal').classList.remove('open');
+    selectedDate = null;
+}
+
+document.getElementById('modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('modal')) closeModal();
+});
+
+loadData();
+initializeIfEmpty();
+renderMain();
+
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+    });
+}
+
+setInterval(renderMain, 60000);
+</script>
+
+</body>
+</html>
