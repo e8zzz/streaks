@@ -22,6 +22,12 @@
     -webkit-user-select: none;
 }
 
+input, textarea {
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+}
+
 html, body {
     width: 100%;
     height: 100%;
@@ -127,7 +133,8 @@ body::before {
     justify-content: center;
     align-items: flex-start;
     gap: 10px;
-    margin-top: 56px;
+    margin-top: 8px;
+    margin-bottom: 8px;
     width: 100%;
 }
 
@@ -208,40 +215,6 @@ body::before {
     align-items: center;
     justify-content: center;
     width: 100%;
-}
-
-.backToTodayBar {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    max-height: 0;
-    overflow: hidden;
-    opacity: 0;
-    transition: all 0.3s ease;
-}
-
-.backToTodayBar.show {
-    max-height: 60px;
-    opacity: 1;
-    margin-top: 18px;
-}
-
-.backToTodayBtn {
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    color: #ff9f0a;
-    font-size: 13px;
-    font-weight: 600;
-    padding: 9px 18px;
-    border-radius: 20px;
-    -webkit-appearance: none;
-    appearance: none;
-    cursor: pointer;
-}
-
-.backToTodayBtn:active {
-    transform: scale(0.95);
-    background: rgba(255, 255, 255, 0.14);
 }
 
 .mainCircle {
@@ -421,18 +394,33 @@ body::before {
 #modal {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0);
     display: none;
     align-items: flex-end;
     justify-content: center;
     z-index: 100;
+    backdrop-filter: blur(0px);
+    transition: background 0.3s ease, backdrop-filter 0.3s ease;
+}
+
+#modal.open,
+#modal.closing,
+#modal.visible {
+    display: flex;
+}
+
+#modal.open {
+    background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(10px);
 }
 
-#modal.open { display: flex; }
+#modal.closing {
+    background: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+}
 
 .modalContent {
-    background: #1e1e1e;
+    background: #1c1c1c;
     border-radius: 20px 20px 0 0;
     padding: 12px 20px max(24px, env(safe-area-inset-bottom));
     width: 100%;
@@ -440,7 +428,19 @@ body::before {
     max-height: 75vh;
     display: flex;
     flex-direction: column;
-    animation: slideUp 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    transform: translateY(100%);
+    opacity: 0.4;
+    transition: transform 0.38s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.3s ease;
+}
+
+#modal.open .modalContent {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+#modal.closing .modalContent {
+    transform: translateY(100%);
+    opacity: 0.4;
 }
 
 .modalGrabber {
@@ -449,11 +449,6 @@ body::before {
     border-radius: 2px;
     background: rgba(255, 255, 255, 0.2);
     margin: 0 auto 18px;
-}
-
-@keyframes slideUp {
-    from { opacity: 0; transform: translateY(50px); }
-    to { opacity: 1; transform: translateY(0); }
 }
 
 .modalHeader {
@@ -569,6 +564,39 @@ button { -webkit-appearance: none; appearance: none; outline: none; border: none
     font-size: 15px;
 }
 
+.niceMessage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 12px 12px 28px;
+}
+
+.niceMessageIcon {
+    width: 52px;
+    height: 52px;
+    margin-bottom: 14px;
+}
+
+.niceMessageIcon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.niceMessageTitle {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    margin-bottom: 8px;
+}
+
+.niceMessageBody {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.45;
+    max-width: 280px;
+}
+
 /* day detail modal */
 .dayDetailHeader {
     display: flex;
@@ -645,12 +673,6 @@ button { -webkit-appearance: none; appearance: none; outline: none; border: none
             </button>
         </div>
 
-        <div class="dayRow" id="dayRow"></div>
-
-        <div class="backToTodayBar" id="backToTodayBar">
-            <button class="backToTodayBtn" id="backToTodayBtn">← Back to Today</button>
-        </div>
-
         <div class="circleWrap">
             <div class="mainCircle" id="mainCircle">
                 <svg class="progressRing" id="progressRing" viewBox="0 0 260 260">
@@ -663,6 +685,8 @@ button { -webkit-appearance: none; appearance: none; outline: none; border: none
                 </div>
             </div>
         </div>
+
+        <div class="dayRow" id="dayRow"></div>
 
         <div class="bottomInfo">
             <div class="streakCount" id="streakCountLine"><b id="streakNum">0</b> Day Streak</div>
@@ -839,7 +863,7 @@ function renderMain() {
     const niceName = streak.name.charAt(0).toUpperCase() + streak.name.slice(1);
 
     if (isToday) {
-        titleEl.textContent = streak.name.toUpperCase() + '?';
+        titleEl.textContent = streak.name.toUpperCase();
         labelEl.textContent = niceName + '?';
     } else {
         titleEl.textContent = formatDateLabel(viewingDate).toUpperCase();
@@ -858,9 +882,6 @@ function renderMain() {
         ringFg.style.strokeDasharray = RING_CIRCUMFERENCE;
         ringFg.style.strokeDashoffset = RING_CIRCUMFERENCE;
     }
-
-    const backBar = document.getElementById('backToTodayBar');
-    backBar.classList.toggle('show', !isToday);
 
     const streakLine = document.getElementById('streakCountLine');
     streakLine.style.opacity = isToday ? '1' : '0';
@@ -995,11 +1016,6 @@ mainCircleEl.addEventListener('pointerup', (e) => {
 mainCircleEl.addEventListener('pointerleave', cancelHold);
 mainCircleEl.addEventListener('pointercancel', cancelHold);
 
-document.getElementById('backToTodayBtn').addEventListener('click', () => {
-    vibrate([12]);
-    goToDate(null);
-});
-
 document.getElementById('addBtn').addEventListener('click', () => {
     vibrate([15]);
     showAddModal();
@@ -1025,7 +1041,11 @@ function showAddModal() {
             <button class="btn btnPrimary" onclick="createNewStreak()">Create</button>
         </div>
     `;
-    modal.classList.add('open');
+    modal.classList.remove('closing');
+    modal.classList.add('visible');
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        modal.classList.add('open');
+    }));
     const input = document.getElementById('streakNameInput');
     setTimeout(() => input.focus(), 150);
     input.addEventListener('keydown', (e) => {
@@ -1066,7 +1086,11 @@ function showAllModal() {
     html += '<div class="btnGroup"><button class="btn btnSecondary" onclick="closeModal()" style="width:100%;">Close</button></div>';
 
     content.innerHTML = html;
-    modal.classList.add('open');
+    modal.classList.remove('closing');
+    modal.classList.add('visible');
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        modal.classList.add('open');
+    }));
 }
 
 function selectStreak(id) {
@@ -1093,7 +1117,7 @@ function createNewStreak() {
 function deleteStreak(id, event) {
     event.stopPropagation();
     if (Object.keys(streaks).length === 1) {
-        alert('You must have at least one streak!');
+        showCantDeleteMessage();
         return;
     }
     delete streaks[id];
@@ -1105,9 +1129,33 @@ function deleteStreak(id, event) {
     showAllModal();
 }
 
+function showCantDeleteMessage() {
+    const content = document.getElementById('modalContent');
+    content.innerHTML = `
+        <div class="modalGrabber"></div>
+        <div class="niceMessage">
+            <div class="niceMessageIcon">
+                <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#ff9f0a" stroke-width="1.8"/><path d="M12 7.5V13" stroke="#ff9f0a" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16.3" r="1.1" fill="#ff9f0a"/></svg>
+            </div>
+            <div class="niceMessageTitle">Can't Delete Last Streak</div>
+            <div class="niceMessageBody">You need at least one streak. Create another before removing this one.</div>
+        </div>
+        <div class="btnGroup">
+            <button class="btn btnPrimary" onclick="showAllModal()" style="width:100%;">Got it</button>
+        </div>
+    `;
+}
+
 function closeModal() {
-    document.getElementById('modal').classList.remove('open');
+    const modal = document.getElementById('modal');
+    if (!modal.classList.contains('open')) return;
+    modal.classList.remove('open');
+    modal.classList.add('closing');
     selectedDate = null;
+    setTimeout(() => {
+        modal.classList.remove('closing');
+        modal.classList.remove('visible');
+    }, 320);
 }
 
 document.getElementById('modal').addEventListener('click', (e) => {
