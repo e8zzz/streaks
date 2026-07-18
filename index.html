@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Streaks</title>
-<meta name="theme-color" content="#0a0a0a">
+<meta name="theme-color" content="#1c1c1c">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon.png">
 <link rel="icon" type="image/png" href="./icon.png">
@@ -25,7 +25,7 @@
 html, body {
     width: 100%;
     height: 100%;
-    background: #0a0a0a;
+    background: #1c1c1c;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
     overflow: hidden;
     touch-action: manipulation;
@@ -50,6 +50,7 @@ body::before {
     flex-direction: column;
     position: relative;
     z-index: 2;
+    background: #1c1c1c;
 }
 
 #mainView {
@@ -209,6 +210,40 @@ body::before {
     width: 100%;
 }
 
+.backToTodayBar {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.backToTodayBar.show {
+    max-height: 60px;
+    opacity: 1;
+    margin-top: 18px;
+}
+
+.backToTodayBtn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    color: #ff9f0a;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 9px 18px;
+    border-radius: 20px;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+}
+
+.backToTodayBtn:active {
+    transform: scale(0.95);
+    background: rgba(255, 255, 255, 0.14);
+}
+
 .mainCircle {
     width: 250px;
     height: 250px;
@@ -256,8 +291,8 @@ body::before {
 .checkWrap {
     position: relative;
     z-index: 2;
-    width: 96px;
-    height: 96px;
+    width: 130px;
+    height: 130px;
     opacity: 0;
     transform: scale(0.3) rotate(-8deg);
     transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -551,6 +586,10 @@ button { -webkit-appearance: none; appearance: none; outline: none; border: none
 
         <div class="dayRow" id="dayRow"></div>
 
+        <div class="backToTodayBar" id="backToTodayBar">
+            <button class="backToTodayBtn" id="backToTodayBtn">← Back to Today</button>
+        </div>
+
         <div class="circleWrap">
             <div class="mainCircle" id="mainCircle">
                 <div class="circleLabel" id="circleLabel"></div>
@@ -561,7 +600,7 @@ button { -webkit-appearance: none; appearance: none; outline: none; border: none
         </div>
 
         <div class="bottomInfo">
-            <div class="streakCount"><b id="streakNum">0</b> Day Streak</div>
+            <div class="streakCount" id="streakCountLine"><b id="streakNum">0</b> Day Streak</div>
         </div>
     </div>
 </div>
@@ -575,6 +614,7 @@ let audioCtx = null;
 const streaks = {};
 let currentStreakId = null;
 let selectedDate = null;
+let viewingDate = null; // null = today, otherwise a 'YYYY-MM-DD' string being viewed
 
 const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none"><path d="M3.5 12.5L9 18.5L20.5 5" stroke="#0a0a0a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const SMALL_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none"><path d="M3.5 12.5L9 18.5L20.5 5" stroke="#0a0a0a" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -666,10 +706,19 @@ function burstParticles(originEl) {
     }
 }
 
-function isCompletedToday() {
+function isViewedDateCompleted() {
     const streak = streaks[currentStreakId];
     if (!streak || !Array.isArray(streak.completedDays)) return false;
-    return streak.completedDays.includes(todayStr());
+    const date = viewingDate || todayStr();
+    return streak.completedDays.includes(date);
+}
+
+function formatDateLabel(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00Z');
+    const dObj = new Date(d.getTime() + d.getTimezoneOffset() * 60000);
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    return `${dayNames[dObj.getDay()]}, ${monthNames[dObj.getMonth()]} ${dObj.getDate()}`;
 }
 
 function renderDayRow() {
@@ -686,20 +735,17 @@ function renderDayRow() {
         date.setDate(date.getDate() - i);
         const dateStr = date.toISOString().split('T')[0];
         const isToday = i === 0;
+        const isViewed = viewingDate ? (dateStr === viewingDate) : isToday;
         const completed = Array.isArray(streak.completedDays) && streak.completedDays.includes(dateStr);
 
         const item = document.createElement('div');
-        item.className = 'dayItem' + (isToday ? ' today' : '');
+        item.className = 'dayItem' + (isViewed ? ' today' : '');
 
         const badge = document.createElement('div');
         badge.className = 'dayBadge' + (completed ? ' completed' : '');
         badge.innerHTML = SMALL_CHECK_SVG;
         badge.addEventListener('click', () => {
-            if (isToday) {
-                toggleToday();
-            } else {
-                openDayDetail(dateStr);
-            }
+            goToDate(isToday ? null : dateStr);
         });
 
         const letter = document.createElement('div');
@@ -712,23 +758,40 @@ function renderDayRow() {
     }
 }
 
+function goToDate(dateStr) {
+    viewingDate = dateStr; // null means today
+    renderMain();
+}
+
 function renderMain() {
     const streak = streaks[currentStreakId];
     if (!streak) return;
 
+    const isToday = !viewingDate;
     const titleEl = document.getElementById('habitTitle');
-    titleEl.textContent = streak.name.toUpperCase() + '?';
-
     const labelEl = document.getElementById('circleLabel');
     const niceName = streak.name.charAt(0).toUpperCase() + streak.name.slice(1);
-    labelEl.textContent = niceName + '?';
+
+    if (isToday) {
+        titleEl.textContent = streak.name.toUpperCase() + '?';
+        labelEl.textContent = niceName + '?';
+    } else {
+        titleEl.textContent = formatDateLabel(viewingDate).toUpperCase();
+        labelEl.textContent = niceName + '?';
+    }
 
     document.getElementById('streakNum').textContent = streak.count;
 
     const circle = document.getElementById('mainCircle');
-    const completed = isCompletedToday();
+    const completed = isViewedDateCompleted();
     circle.classList.toggle('completed', completed);
     titleEl.classList.toggle('done', completed);
+
+    const backBar = document.getElementById('backToTodayBar');
+    backBar.classList.toggle('show', !isToday);
+
+    const streakLine = document.getElementById('streakCountLine');
+    streakLine.style.opacity = isToday ? '1' : '0';
 
     renderDayRow();
 }
@@ -738,13 +801,14 @@ function toggleToday(fromMainCircle) {
     if (!streak) return;
     if (!Array.isArray(streak.completedDays)) streak.completedDays = [];
 
-    const today = todayStr();
-    const idx = streak.completedDays.indexOf(today);
+    const date = viewingDate || todayStr();
+    const isToday = !viewingDate;
+    const idx = streak.completedDays.indexOf(date);
     const circle = document.getElementById('mainCircle');
 
     if (idx === -1) {
-        streak.completedDays.push(today);
-        streak.count++;
+        streak.completedDays.push(date);
+        if (isToday) streak.count++;
         playCompleteSound();
         vibrate([20, 10, 20]);
         burstParticles(circle);
@@ -752,7 +816,7 @@ function toggleToday(fromMainCircle) {
         setTimeout(() => circle.classList.remove('popping'), 500);
     } else {
         streak.completedDays.splice(idx, 1);
-        streak.count = Math.max(0, streak.count - 1);
+        if (isToday) streak.count = Math.max(0, streak.count - 1);
         playUncheckSound();
         vibrate([15]);
     }
@@ -760,6 +824,11 @@ function toggleToday(fromMainCircle) {
     saveData();
     renderMain();
 }
+
+document.getElementById('backToTodayBtn').addEventListener('click', () => {
+    vibrate([12]);
+    goToDate(null);
+});
 
 document.getElementById('mainCircle').addEventListener('click', () => toggleToday(true));
 
@@ -827,67 +896,9 @@ function showAllModal() {
     modal.classList.add('open');
 }
 
-function openDayDetail(dateStr) {
-    selectedDate = dateStr;
-    const d = new Date(dateStr + 'T00:00:00Z');
-    const dObj = new Date(d.getTime() + d.getTimezoneOffset() * 60000);
-    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    const label = `${dayNames[dObj.getDay()]}, ${monthNames[dObj.getMonth()]} ${dObj.getDate()}`;
-
-    const streak = streaks[currentStreakId];
-    const completed = Array.isArray(streak.completedDays) && streak.completedDays.includes(dateStr);
-
-    const modal = document.getElementById('modal');
-    const content = document.getElementById('modalContent');
-    content.innerHTML = `
-        <div class="dayDetailHeader">
-            <button class="backBtn" onclick="closeModal()">←</button>
-            <div class="dayDetailTitle">${label}</div>
-        </div>
-        <div class="detailCircleWrap">
-            <div class="detailCircle ${completed ? 'completed' : ''}" id="detailCircle">
-                <div class="detailCheckWrap">${CHECK_SVG}</div>
-            </div>
-        </div>
-        <div class="btnGroup" style="margin-top: 10px;">
-            <button class="btn btnSecondary" onclick="closeModal()">Done</button>
-        </div>
-    `;
-    modal.classList.add('open');
-
-    setTimeout(() => {
-        const dc = document.getElementById('detailCircle');
-        if (dc) dc.addEventListener('click', toggleSelectedDate);
-    }, 50);
-}
-
-function toggleSelectedDate() {
-    if (!selectedDate) return;
-    const streak = streaks[currentStreakId];
-    if (!Array.isArray(streak.completedDays)) streak.completedDays = [];
-
-    const idx = streak.completedDays.indexOf(selectedDate);
-    const dc = document.getElementById('detailCircle');
-
-    if (idx === -1) {
-        streak.completedDays.push(selectedDate);
-        playCompleteSound();
-        vibrate([20, 10, 20]);
-        if (dc) burstParticles(dc);
-    } else {
-        streak.completedDays.splice(idx, 1);
-        playUncheckSound();
-        vibrate([15]);
-    }
-
-    if (dc) dc.classList.toggle('completed');
-    saveData();
-    renderMain();
-}
-
 function selectStreak(id) {
     currentStreakId = id;
+    viewingDate = null;
     saveData();
     renderMain();
     closeModal();
@@ -900,6 +911,7 @@ function createNewStreak() {
     const id = Date.now().toString();
     streaks[id] = { id, name, count: 0, createdAt: new Date().toISOString(), completedDays: [] };
     currentStreakId = id;
+    viewingDate = null;
     saveData();
     renderMain();
     closeModal();
@@ -912,6 +924,7 @@ function createNewStreakFromList() {
     const id = Date.now().toString();
     streaks[id] = { id, name, count: 0, createdAt: new Date().toISOString(), completedDays: [] };
     currentStreakId = id;
+    viewingDate = null;
     saveData();
     renderMain();
     closeModal();
@@ -924,7 +937,10 @@ function deleteStreak(id, event) {
         return;
     }
     delete streaks[id];
-    if (currentStreakId === id) currentStreakId = Object.keys(streaks)[0];
+    if (currentStreakId === id) {
+        currentStreakId = Object.keys(streaks)[0];
+        viewingDate = null;
+    }
     saveData();
     showAllModal();
 }
