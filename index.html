@@ -288,19 +288,85 @@ body::before {
     100% { transform: scale(1); }
 }
 
+/* Long-press progress ring */
+.progressRing {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+    z-index: 3;
+    pointer-events: none;
+}
+
+.progressRingBg {
+    fill: none;
+    stroke: transparent;
+}
+
+.progressRingFg {
+    fill: none;
+    stroke: #ffffff;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 798;
+    stroke-dashoffset: 798;
+}
+
+.mainCircle.holding .progressRingFg {
+    transition: stroke-dashoffset linear;
+}
+
+/* Flash burst when completed */
+.mainCircle::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: #ffffff;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.mainCircle.flashing::after {
+    animation: flashBurst 0.5s ease-out;
+}
+
+@keyframes flashBurst {
+    0% { opacity: 0; transform: scale(1); }
+    30% { opacity: 0.9; transform: scale(1.15); }
+    100% { opacity: 0; transform: scale(1.3); }
+}
+
+.holdHint {
+    margin-top: 22px;
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.35);
+    letter-spacing: 0.3px;
+    text-align: center;
+    transition: opacity 0.3s ease;
+    opacity: 1;
+}
+
+.holdHint.hidden {
+    opacity: 0;
+}
+
 .checkWrap {
     position: relative;
     z-index: 2;
-    width: 130px;
-    height: 130px;
+    width: 100px;
+    height: 100px;
     opacity: 0;
-    transform: scale(0.3) rotate(-8deg);
-    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform: scale(0.2);
+    transition: all 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .mainCircle.completed .checkWrap {
     opacity: 1;
-    transform: scale(1) rotate(0deg);
+    transform: scale(1);
 }
 
 .checkWrap svg {
@@ -592,12 +658,18 @@ button { -webkit-appearance: none; appearance: none; outline: none; border: none
 
         <div class="circleWrap">
             <div class="mainCircle" id="mainCircle">
+                <svg class="progressRing" id="progressRing" viewBox="0 0 260 260">
+                    <circle class="progressRingBg" cx="130" cy="130" r="127"></circle>
+                    <circle class="progressRingFg" id="progressRingFg" cx="130" cy="130" r="127"></circle>
+                </svg>
                 <div class="circleLabel" id="circleLabel"></div>
                 <div class="checkWrap">
-                    <svg viewBox="0 0 24 24" fill="none"><path d="M3.5 12.5L9 18.5L20.5 5" stroke="#0a0a0a" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M3.5 12.5L9 18.5L20.5 5" stroke="#0a0a0a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
             </div>
         </div>
+
+        <div class="holdHint" id="holdHint">Press and hold</div>
 
         <div class="bottomInfo">
             <div class="streakCount" id="streakCountLine"><b id="streakNum">0</b> Day Streak</div>
@@ -614,6 +686,7 @@ let audioCtx = null;
 const streaks = {};
 let currentStreakId = null;
 let selectedDate = null;
+const RING_CIRCUMFERENCE = 2 * Math.PI * 127; // matches r=127 in the SVG
 let viewingDate = null; // null = today, otherwise a 'YYYY-MM-DD' string being viewed
 
 const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none"><path d="M3.5 12.5L9 18.5L20.5 5" stroke="#0a0a0a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
@@ -787,6 +860,15 @@ function renderMain() {
     circle.classList.toggle('completed', completed);
     titleEl.classList.toggle('done', completed);
 
+    const ringFg = document.getElementById('progressRingFg');
+    if (ringFg) {
+        ringFg.style.strokeDasharray = RING_CIRCUMFERENCE;
+        ringFg.style.strokeDashoffset = RING_CIRCUMFERENCE;
+    }
+
+    const holdHint = document.getElementById('holdHint');
+    if (holdHint) holdHint.classList.toggle('hidden', completed);
+
     const backBar = document.getElementById('backToTodayBar');
     backBar.classList.toggle('show', !isToday);
 
@@ -796,7 +878,7 @@ function renderMain() {
     renderDayRow();
 }
 
-function toggleToday(fromMainCircle) {
+function completeHold() {
     const streak = streaks[currentStreakId];
     if (!streak) return;
     if (!Array.isArray(streak.completedDays)) streak.completedDays = [];
@@ -810,11 +892,26 @@ function toggleToday(fromMainCircle) {
         streak.completedDays.push(date);
         if (isToday) streak.count++;
         playCompleteSound();
-        vibrate([20, 10, 20]);
+        vibrate([25, 15, 25]);
+        circle.classList.add('flashing');
+        setTimeout(() => circle.classList.remove('flashing'), 500);
         burstParticles(circle);
-        circle.classList.add('popping');
-        setTimeout(() => circle.classList.remove('popping'), 500);
-    } else {
+    }
+
+    saveData();
+    renderMain();
+}
+
+function uncheckDate() {
+    const streak = streaks[currentStreakId];
+    if (!streak) return;
+    if (!Array.isArray(streak.completedDays)) streak.completedDays = [];
+
+    const date = viewingDate || todayStr();
+    const isToday = !viewingDate;
+    const idx = streak.completedDays.indexOf(date);
+
+    if (idx !== -1) {
         streak.completedDays.splice(idx, 1);
         if (isToday) streak.count = Math.max(0, streak.count - 1);
         playUncheckSound();
@@ -825,12 +922,83 @@ function toggleToday(fromMainCircle) {
     renderMain();
 }
 
+// --- Long press handling for the main circle ---
+const HOLD_DURATION = 650; // ms to hold before completing
+
+let holdTimer = null;
+let holdStartTime = null;
+let holdAnimFrame = null;
+let isHolding = false;
+
+function setRingOffset(fraction) {
+    const ringFg = document.getElementById('progressRingFg');
+    const offset = RING_CIRCUMFERENCE * (1 - fraction);
+    ringFg.style.strokeDasharray = RING_CIRCUMFERENCE;
+    ringFg.style.strokeDashoffset = offset;
+}
+
+function startHold(e) {
+    const circle = document.getElementById('mainCircle');
+    if (circle.classList.contains('completed')) {
+        // Already done -- tapping again unchecks it (quick tap, no hold needed)
+        return;
+    }
+    if (isHolding) return;
+    isHolding = true;
+    holdStartTime = Date.now();
+    circle.classList.add('holding');
+    vibrate([10]);
+
+    function tick() {
+        if (!isHolding) return;
+        const elapsed = Date.now() - holdStartTime;
+        const fraction = Math.min(elapsed / HOLD_DURATION, 1);
+        setRingOffset(fraction);
+
+        if (fraction >= 1) {
+            isHolding = false;
+            circle.classList.remove('holding');
+            setRingOffset(0);
+            completeHold();
+            return;
+        }
+        holdAnimFrame = requestAnimationFrame(tick);
+    }
+    holdAnimFrame = requestAnimationFrame(tick);
+}
+
+function cancelHold() {
+    if (!isHolding) return;
+    isHolding = false;
+    if (holdAnimFrame) cancelAnimationFrame(holdAnimFrame);
+    const circle = document.getElementById('mainCircle');
+    circle.classList.remove('holding');
+    setRingOffset(0);
+}
+
+function handleQuickTap() {
+    const circle = document.getElementById('mainCircle');
+    if (circle.classList.contains('completed')) {
+        uncheckDate();
+    }
+}
+
+const mainCircleEl = document.getElementById('mainCircle');
+mainCircleEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    startHold(e);
+});
+mainCircleEl.addEventListener('pointerup', (e) => {
+    cancelHold();
+    handleQuickTap();
+});
+mainCircleEl.addEventListener('pointerleave', cancelHold);
+mainCircleEl.addEventListener('pointercancel', cancelHold);
+
 document.getElementById('backToTodayBtn').addEventListener('click', () => {
     vibrate([12]);
     goToDate(null);
 });
-
-document.getElementById('mainCircle').addEventListener('click', () => toggleToday(true));
 
 document.getElementById('addBtn').addEventListener('click', () => {
     vibrate([15]);
