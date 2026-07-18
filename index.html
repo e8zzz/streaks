@@ -339,20 +339,7 @@ body::before {
     100% { opacity: 0; transform: scale(1.3); }
 }
 
-.holdHint {
-    margin-top: 22px;
-    font-size: 12px;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.35);
-    letter-spacing: 0.3px;
-    text-align: center;
-    transition: opacity 0.3s ease;
-    opacity: 1;
-}
 
-.holdHint.hidden {
-    opacity: 0;
-}
 
 .checkWrap {
     position: relative;
@@ -445,15 +432,23 @@ body::before {
 #modal.open { display: flex; }
 
 .modalContent {
-    background: #161616;
-    border-radius: 26px 26px 0 0;
-    padding: 28px 22px max(28px, env(safe-area-inset-bottom));
+    background: #1e1e1e;
+    border-radius: 20px 20px 0 0;
+    padding: 12px 20px max(24px, env(safe-area-inset-bottom));
     width: 100%;
     max-width: 480px;
-    max-height: 82vh;
+    max-height: 75vh;
     display: flex;
     flex-direction: column;
-    animation: slideUp 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    animation: slideUp 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.modalGrabber {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    margin: 0 auto 18px;
 }
 
 @keyframes slideUp {
@@ -664,12 +659,10 @@ button { -webkit-appearance: none; appearance: none; outline: none; border: none
                 </svg>
                 <div class="circleLabel" id="circleLabel"></div>
                 <div class="checkWrap">
-                    <svg viewBox="0 0 24 24" fill="none"><path d="M3.5 12.5L9 18.5L20.5 5" stroke="#0a0a0a" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none"><path d="M6.48 12.72L9.84 16.08L17.52 5.76" stroke="#0a0a0a" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 </div>
             </div>
         </div>
-
-        <div class="holdHint" id="holdHint">Press and hold</div>
 
         <div class="bottomInfo">
             <div class="streakCount" id="streakCountLine"><b id="streakNum">0</b> Day Streak</div>
@@ -689,8 +682,8 @@ let selectedDate = null;
 const RING_CIRCUMFERENCE = 2 * Math.PI * 127; // matches r=127 in the SVG
 let viewingDate = null; // null = today, otherwise a 'YYYY-MM-DD' string being viewed
 
-const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none"><path d="M3.5 12.5L9 18.5L20.5 5" stroke="#0a0a0a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-const SMALL_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none"><path d="M3.5 12.5L9 18.5L20.5 5" stroke="#0a0a0a" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none"><path d="M6.48 12.72L9.84 16.08L17.52 5.76" stroke="#0a0a0a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SMALL_CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none"><path d="M6.48 12.72L9.84 16.08L17.52 5.76" stroke="#0a0a0a" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 function todayStr() {
     return new Date().toISOString().split('T')[0];
@@ -866,9 +859,6 @@ function renderMain() {
         ringFg.style.strokeDashoffset = RING_CIRCUMFERENCE;
     }
 
-    const holdHint = document.getElementById('holdHint');
-    if (holdHint) holdHint.classList.toggle('hidden', completed);
-
     const backBar = document.getElementById('backToTodayBar');
     backBar.classList.toggle('show', !isToday);
 
@@ -929,6 +919,7 @@ let holdTimer = null;
 let holdStartTime = null;
 let holdAnimFrame = null;
 let isHolding = false;
+let justCompleted = false;
 
 function setRingOffset(fraction) {
     const ringFg = document.getElementById('progressRingFg');
@@ -959,6 +950,7 @@ function startHold(e) {
             isHolding = false;
             circle.classList.remove('holding');
             setRingOffset(0);
+            justCompleted = true;
             completeHold();
             return;
         }
@@ -984,13 +976,21 @@ function handleQuickTap() {
 }
 
 const mainCircleEl = document.getElementById('mainCircle');
+
 mainCircleEl.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     startHold(e);
 });
 mainCircleEl.addEventListener('pointerup', (e) => {
+    const wasHolding = isHolding;
     cancelHold();
-    handleQuickTap();
+    if (justCompleted) {
+        justCompleted = false;
+        return;
+    }
+    if (!wasHolding) {
+        handleQuickTap();
+    }
 });
 mainCircleEl.addEventListener('pointerleave', cancelHold);
 mainCircleEl.addEventListener('pointercancel', cancelHold);
@@ -1014,9 +1014,11 @@ function showAddModal() {
     const modal = document.getElementById('modal');
     const content = document.getElementById('modalContent');
     content.innerHTML = `
+        <div class="modalGrabber"></div>
         <div class="modalHeader">New Streak</div>
         <div class="inputGroup">
-            <input type="text" id="streakNameInput" placeholder="Streak name..." maxlength="40" autofocus>
+            <input type="text" id="streakNameInput" placeholder="Streak name..." maxlength="40"
+                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         </div>
         <div class="btnGroup">
             <button class="btn btnSecondary" onclick="closeModal()">Cancel</button>
@@ -1024,7 +1026,11 @@ function showAddModal() {
         </div>
     `;
     modal.classList.add('open');
-    setTimeout(() => document.getElementById('streakNameInput').focus(), 100);
+    const input = document.getElementById('streakNameInput');
+    setTimeout(() => input.focus(), 150);
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') createNewStreak();
+    });
 }
 
 function showAllModal() {
@@ -1032,7 +1038,7 @@ function showAllModal() {
     const content = document.getElementById('modalContent');
     const list = Object.values(streaks).sort((a, b) => b.count - a.count);
 
-    let html = '<div class="modalHeader">All Streaks</div><div class="streakList">';
+    let html = '<div class="modalGrabber"></div><div class="modalHeader">All Streaks</div><div class="streakList">';
 
     if (list.length === 0) {
         html += '<div class="emptyState">No streaks yet.</div>';
@@ -1057,8 +1063,7 @@ function showAllModal() {
         });
     }
     html += '</div>';
-    html += '<div class="inputGroup"><input type="text" id="streakNameInput" placeholder="Add new streak..." maxlength="40"></div>';
-    html += '<div class="btnGroup"><button class="btn btnSecondary" onclick="closeModal()">Close</button><button class="btn btnPrimary" onclick="createNewStreakFromList()">Create</button></div>';
+    html += '<div class="btnGroup"><button class="btn btnSecondary" onclick="closeModal()" style="width:100%;">Close</button></div>';
 
     content.innerHTML = html;
     modal.classList.add('open');
@@ -1073,19 +1078,6 @@ function selectStreak(id) {
 }
 
 function createNewStreak() {
-    const input = document.getElementById('streakNameInput');
-    const name = input.value.trim();
-    if (!name) return;
-    const id = Date.now().toString();
-    streaks[id] = { id, name, count: 0, createdAt: new Date().toISOString(), completedDays: [] };
-    currentStreakId = id;
-    viewingDate = null;
-    saveData();
-    renderMain();
-    closeModal();
-}
-
-function createNewStreakFromList() {
     const input = document.getElementById('streakNameInput');
     const name = input.value.trim();
     if (!name) return;
