@@ -1,4 +1,4 @@
-const CACHE_NAME = 'streaks-v1';
+const CACHE_NAME = 'streaks-v2';
 const URLS_TO_CACHE = [
   './',
   './index.html',
@@ -9,9 +9,7 @@ const URLS_TO_CACHE = [
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(URLS_TO_CACHE).catch(() => {
-        // Don't fail installation if cache fails
-      });
+      return cache.addAll(URLS_TO_CACHE).catch(() => {});
     })
   );
   self.skipWaiting();
@@ -32,28 +30,28 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+// Network-first: always try to get the latest file from the server.
+// Only fall back to the cached copy if the network request fails (offline).
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') {
     return;
   }
 
   event.respondWith(
-    caches.match(event.request).then(response => {
-      if (response) {
-        return response;
-      }
-      return fetch(event.request).then(response => {
-        if (!response || response.status !== 200 || response.type === 'error') {
-          return response;
+    fetch(event.request)
+      .then(response => {
+        if (response && response.status === 200) {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, responseToCache);
+          });
         }
-        const responseToCache = response.clone();
-        caches.open(CACHE_NAME).then(cache => {
-          cache.put(event.request, responseToCache);
-        });
         return response;
-      }).catch(() => {
-        return caches.match('/index.html');
-      });
-    })
+      })
+      .catch(() => {
+        return caches.match(event.request).then(cached => {
+          return cached || caches.match('./index.html');
+        });
+      })
   );
 });
