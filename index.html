@@ -1043,14 +1043,14 @@ function showAddModal() {
     `;
     modal.classList.remove('closing');
     modal.classList.add('visible');
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-        modal.classList.add('open');
-    }));
+    modal.classList.add('open');
     const input = document.getElementById('streakNameInput');
-    setTimeout(() => input.focus(), 150);
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') createNewStreak();
     });
+    // iOS Safari only opens the keyboard if .focus() runs synchronously
+    // inside the same gesture that triggered this function (no setTimeout/rAF delay).
+    input.focus();
 }
 
 function showAllModal() {
