@@ -29,7 +29,8 @@ input, textarea {
     touch-action: auto;
 }
 
-button, .mainCircle, .dayBadge, .iconBtn, .streakItem, .deleteBtn {
+button, .mainCircle, .mainCircle *, .dayBadge, .dayBadge *, .iconBtn, .iconBtn *,
+.streakItem, .streakItem *, .deleteBtn, .circleLabel, .checkWrap, .checkWrap * {
     touch-action: manipulation;
 }
 
@@ -194,6 +195,7 @@ body::before {
     text-transform: uppercase;
     padding-bottom: 6px;
     border-bottom: 2px solid transparent;
+    transition: color 0.25s ease, border-color 0.25s ease;
 }
 
 .dayItem.today .dayLetter {
@@ -455,12 +457,30 @@ body::before {
     opacity: 0.4;
 }
 
+.modalGrabberZone {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    padding: 10px 0 14px;
+    margin: -12px -20px 4px;
+    cursor: grab;
+    touch-action: none;
+}
+
+.modalGrabberZone:active {
+    cursor: grabbing;
+}
+
 .modalGrabber {
     width: 36px;
     height: 4px;
     border-radius: 2px;
     background: rgba(255, 255, 255, 0.2);
-    margin: 0 auto 18px;
+    transition: background 0.15s ease;
+}
+
+.modalGrabberZone:active .modalGrabber {
+    background: rgba(255, 255, 255, 0.4);
 }
 
 .modalHeader {
@@ -825,13 +845,14 @@ function formatDateLabel(dateStr) {
 
 function renderDayRow() {
     const row = document.getElementById('dayRow');
-    row.innerHTML = '';
     const streak = streaks[currentStreakId];
     if (!streak) return;
 
     const dayLetters = ['SO', 'MO', 'DI', 'MI', 'DO', 'FR', 'SA'];
     const today = new Date();
 
+    // Build the list of 7 day descriptors we need to show.
+    const days = [];
     for (let i = 6; i >= 0; i--) {
         const date = new Date(today);
         date.setDate(date.getDate() - i);
@@ -839,31 +860,76 @@ function renderDayRow() {
         const isToday = i === 0;
         const isViewed = viewingDate ? (dateStr === viewingDate) : isToday;
         const completed = Array.isArray(streak.completedDays) && streak.completedDays.includes(dateStr);
-
-        const item = document.createElement('div');
-        item.className = 'dayItem' + (isViewed ? ' today' : '');
-
-        const badge = document.createElement('div');
-        badge.className = 'dayBadge' + (completed ? ' completed' : '');
-        badge.innerHTML = SMALL_CHECK_SVG;
-        badge.addEventListener('click', () => {
-            goToDate(isToday ? null : dateStr);
-        });
-
-        const letter = document.createElement('div');
-        letter.className = 'dayLetter';
-        letter.textContent = isToday ? 'HEUTE' : dayLetters[date.getDay()];
-
-        item.appendChild(badge);
-        item.appendChild(letter);
-        row.appendChild(item);
+        days.push({ dateStr, isToday, isViewed, completed, dayName: dayLetters[date.getDay()] });
     }
+
+    const existingItems = row.querySelectorAll('.dayItem');
+
+    if (existingItems.length !== days.length) {
+        // First render (or streak changed count of days shown) -- build fresh.
+        row.innerHTML = '';
+        days.forEach(d => row.appendChild(buildDayItem(d)));
+        return;
+    }
+
+    // Subsequent renders -- update each existing element in place so
+    // CSS transitions (color, border, background) actually animate.
+    existingItems.forEach((item, idx) => {
+        const d = days[idx];
+        item.classList.toggle('today', d.isViewed);
+
+        const badge = item.querySelector('.dayBadge');
+        badge.classList.toggle('completed', d.completed);
+        badge.onclick = () => goToDate(d.isToday ? null : d.dateStr);
+
+        const letter = item.querySelector('.dayLetter');
+        letter.textContent = d.isToday ? 'HEUTE' : d.dayName;
+    });
+}
+
+function buildDayItem(d) {
+    const item = document.createElement('div');
+    item.className = 'dayItem' + (d.isViewed ? ' today' : '');
+
+    const badge = document.createElement('div');
+    badge.className = 'dayBadge' + (d.completed ? ' completed' : '');
+    badge.innerHTML = SMALL_CHECK_SVG;
+    badge.onclick = () => goToDate(d.isToday ? null : d.dateStr);
+
+    const letter = document.createElement('div');
+    letter.className = 'dayLetter';
+    letter.textContent = d.isToday ? 'HEUTE' : d.dayName;
+
+    item.appendChild(badge);
+    item.appendChild(letter);
+    return item;
 }
 
 function goToDate(dateStr) {
     if (dateStr === viewingDate) return;
+
+    // Cancel any in-progress hold before switching, so a stale
+    // requestAnimationFrame loop from the previous day can never
+    // interfere with the new day's state.
+    cancelHold();
+
+    // Update state and render immediately -- never delay the actual
+    // state change, since a delayed update is exactly what caused the
+    // "have to tap twice" bug (holding the circle while viewingDate was
+    // still stale from the previous day).
     viewingDate = dateStr; // null means today
     renderMain();
+
+    // Purely cosmetic: give the title a quick fade-in so the text swap
+    // doesn't feel like a hard jump cut. This never blocks or delays
+    // anything above.
+    const titleEl = document.getElementById('habitTitle');
+    titleEl.style.transition = 'none';
+    titleEl.style.opacity = '0';
+    requestAnimationFrame(() => {
+        titleEl.style.transition = 'opacity 0.2s ease';
+        titleEl.style.opacity = '1';
+    });
 }
 
 function renderMain() {
@@ -1043,7 +1109,7 @@ function showAddModal() {
     const modal = document.getElementById('modal');
     const content = document.getElementById('modalContent');
     content.innerHTML = `
-        <div class="modalGrabber"></div>
+        <div class="modalGrabberZone" id="grabberZone1"><div class="modalGrabber"></div></div>
         <div class="modalHeader">New Streak</div>
         <div class="inputGroup">
             <input type="text" id="streakNameInput" placeholder="Streak name..." maxlength="40"
@@ -1074,7 +1140,7 @@ function showAllModal() {
     const content = document.getElementById('modalContent');
     const list = Object.values(streaks).sort((a, b) => b.count - a.count);
 
-    let html = '<div class="modalGrabber"></div><div class="modalHeader">All Streaks</div><div class="streakList">';
+    let html = '<div class="modalGrabberZone" id="grabberZone2"><div class="modalGrabber"></div></div><div class="modalHeader">All Streaks</div><div class="streakList">';
 
     if (list.length === 0) {
         html += '<div class="emptyState">No streaks yet.</div>';
@@ -1148,7 +1214,7 @@ function deleteStreak(id, event) {
 function showCantDeleteMessage() {
     const content = document.getElementById('modalContent');
     content.innerHTML = `
-        <div class="modalGrabber"></div>
+        <div class="modalGrabberZone" id="grabberZone3"><div class="modalGrabber"></div></div>
         <div class="niceMessage">
             <div class="niceMessageIcon">
                 <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#ff9f0a" stroke-width="1.8"/><path d="M12 7.5V13" stroke="#ff9f0a" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16.3" r="1.1" fill="#ff9f0a"/></svg>
@@ -1174,6 +1240,71 @@ function closeModal() {
     }, 320);
 }
 
+// --- Draggable grabber handle: follows your finger, snaps back or
+// dismisses the sheet depending on how far you dragged it down. ---
+(function setupGrabberDrag() {
+    const modal = document.getElementById('modal');
+    let dragging = false;
+    let startY = 0;
+    let currentY = 0;
+    let sheetEl = null;
+
+    modal.addEventListener('pointerdown', (e) => {
+        const zone = e.target.closest('.modalGrabberZone');
+        if (!zone) return;
+        sheetEl = document.getElementById('modalContent');
+        if (!sheetEl) return;
+
+        dragging = true;
+        startY = e.clientY;
+        currentY = 0;
+        sheetEl.style.transition = 'none';
+        zone.setPointerCapture(e.pointerId);
+    });
+
+    modal.addEventListener('pointermove', (e) => {
+        if (!dragging || !sheetEl) return;
+        const delta = e.clientY - startY;
+        currentY = Math.max(0, delta); // only allow dragging downward
+        sheetEl.style.transform = `translateY(${currentY}px)`;
+
+        // Dim the backdrop proportionally as the sheet is dragged down.
+        const dragFraction = Math.min(currentY / 400, 1);
+        modal.style.background = `rgba(0, 0, 0, ${0.5 * (1 - dragFraction)})`;
+        modal.style.backdropFilter = `blur(${10 * (1 - dragFraction)}px)`;
+    });
+
+    function endDrag() {
+        if (!dragging || !sheetEl) return;
+        dragging = false;
+        const el = sheetEl;
+        el.style.transition = 'transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)';
+
+        const dismissThreshold = 120; // px dragged down before we close the sheet
+        if (currentY > dismissThreshold) {
+            closeModal();
+            // closeModal drives its own transform via CSS classes; clear our
+            // inline override once that transition would have finished.
+            setTimeout(() => { el.style.transform = ''; el.style.transition = ''; }, 340);
+        } else {
+            // Snap back to open position, then clear the inline override
+            // so the sheet's normal CSS classes take over cleanly.
+            el.style.transform = 'translateY(0)';
+            setTimeout(() => { el.style.transform = ''; el.style.transition = ''; }, 340);
+        }
+
+        sheetEl = null;
+        currentY = 0;
+        setTimeout(() => {
+            modal.style.background = '';
+            modal.style.backdropFilter = '';
+        }, 340);
+    }
+
+    modal.addEventListener('pointerup', endDrag);
+    modal.addEventListener('pointercancel', endDrag);
+})();
+
 document.getElementById('modal').addEventListener('click', (e) => {
     if (e.target === document.getElementById('modal')) closeModal();
 });
@@ -1183,6 +1314,21 @@ document.getElementById('modal').addEventListener('click', (e) => {
 document.addEventListener('touchmove', (e) => {
     if (e.target.closest('.streakList')) return;
     e.preventDefault();
+}, { passive: false });
+
+// Prevent iOS's double-tap-to-zoom magnifier everywhere in the app.
+// touch-action: manipulation normally handles this, but iOS standalone
+// PWAs sometimes still trigger it on fast double taps -- this is the
+// bulletproof backstop: block the second tap of any double-tap within
+// 350ms from reaching the browser's native zoom handling.
+let lastTouchEnd = 0;
+document.addEventListener('touchend', (e) => {
+    if (e.target.closest('input, textarea')) return;
+    const now = Date.now();
+    if (now - lastTouchEnd <= 350) {
+        e.preventDefault();
+    }
+    lastTouchEnd = now;
 }, { passive: false });
 
 loadData();
