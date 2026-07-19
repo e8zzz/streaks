@@ -36,10 +36,17 @@ button, .mainCircle, .dayBadge, .iconBtn, .streakItem, .deleteBtn {
 html, body {
     width: 100%;
     height: 100%;
-    background: #1c1c1c;
+    background: radial-gradient(ellipse 120% 80% at 50% 30%, #232323 0%, #191919 55%, #121212 100%);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
     overflow: hidden;
+    overscroll-behavior: none;
     color: #ffffff;
+    position: fixed;
+    inset: 0;
+}
+
+#app {
+    overscroll-behavior: none;
 }
 
 /* subtle grain texture like the reference */
@@ -60,7 +67,7 @@ body::before {
     flex-direction: column;
     position: relative;
     z-index: 2;
-    background: #1c1c1c;
+    background: transparent;
 }
 
 #mainView {
@@ -219,6 +226,27 @@ body::before {
     align-items: center;
     justify-content: center;
     width: 100%;
+    position: relative;
+}
+
+.circleWrap::before {
+    content: '';
+    position: absolute;
+    width: 340px;
+    height: 340px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 70%);
+    pointer-events: none;
+    z-index: 0;
+}
+
+.circleContentTransition {
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.circleContentTransition.switching {
+    opacity: 0;
+    transform: scale(0.94);
 }
 
 .mainCircle {
@@ -678,7 +706,7 @@ button { -webkit-appearance: none; appearance: none; outline: none; border: none
         </div>
 
         <div class="circleWrap">
-            <div class="mainCircle" id="mainCircle">
+            <div class="mainCircle circleContentTransition" id="mainCircle">
                 <svg class="progressRing" id="progressRing" viewBox="0 0 260 260">
                     <circle class="progressRingBg" cx="130" cy="130" r="127"></circle>
                     <circle class="progressRingFg" id="progressRingFg" cx="130" cy="130" r="127"></circle>
@@ -853,8 +881,20 @@ function renderDayRow() {
 }
 
 function goToDate(dateStr) {
-    viewingDate = dateStr; // null means today
-    renderMain();
+    if (dateStr === viewingDate) return;
+    const circle = document.getElementById('mainCircle');
+    const titleEl = document.getElementById('habitTitle');
+
+    circle.classList.add('switching');
+    titleEl.style.transition = 'opacity 0.16s ease';
+    titleEl.style.opacity = '0';
+
+    setTimeout(() => {
+        viewingDate = dateStr; // null means today
+        renderMain();
+        circle.classList.remove('switching');
+        titleEl.style.opacity = '1';
+    }, 160);
 }
 
 function renderMain() {
@@ -1168,6 +1208,13 @@ function closeModal() {
 document.getElementById('modal').addEventListener('click', (e) => {
     if (e.target === document.getElementById('modal')) closeModal();
 });
+
+// Prevent any page-level scroll/bounce on iOS, while still allowing
+// legitimate scrolling inside the streak list inside the modal sheet.
+document.addEventListener('touchmove', (e) => {
+    if (e.target.closest('.streakList')) return;
+    e.preventDefault();
+}, { passive: false });
 
 loadData();
 initializeIfEmpty();
