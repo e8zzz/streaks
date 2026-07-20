@@ -410,11 +410,12 @@ body::before {
     inset: 0;
     background: rgba(0, 0, 0, 0);
     display: none;
-    align-items: flex-end;
+    align-items: center;
     justify-content: center;
     z-index: 100;
     backdrop-filter: blur(0px);
-    transition: background 0.3s ease, backdrop-filter 0.3s ease;
+    transition: background 0.25s ease, backdrop-filter 0.25s ease;
+    padding: 24px;
 }
 
 #modal.open,
@@ -424,8 +425,8 @@ body::before {
 }
 
 #modal.open {
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(14px);
 }
 
 #modal.closing {
@@ -434,53 +435,29 @@ body::before {
 }
 
 .modalContent {
-    background: #161616;
-    border-radius: 20px 20px 0 0;
-    padding: 12px 20px max(24px, env(safe-area-inset-bottom));
+    background: #1c1c1c;
+    border-radius: 24px;
+    padding: 28px 24px;
     width: 100%;
-    max-width: 480px;
-    max-height: 75vh;
+    max-width: 360px;
+    max-height: 80vh;
     display: flex;
     flex-direction: column;
-    transform: translateY(100%);
-    opacity: 0.4;
-    transition: transform 0.38s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.3s ease;
+    align-items: center;
+    text-align: center;
+    transform: scale(0.88);
+    opacity: 0;
+    transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.22s ease;
 }
 
 #modal.open .modalContent {
-    transform: translateY(0);
+    transform: scale(1);
     opacity: 1;
 }
 
 #modal.closing .modalContent {
-    transform: translateY(100%);
-    opacity: 0.4;
-}
-
-.modalGrabberZone {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    padding: 10px 0 14px;
-    margin: -12px -20px 4px;
-    cursor: grab;
-    touch-action: none;
-}
-
-.modalGrabberZone:active {
-    cursor: grabbing;
-}
-
-.modalGrabber {
-    width: 36px;
-    height: 4px;
-    border-radius: 2px;
-    background: rgba(255, 255, 255, 0.2);
-    transition: background 0.15s ease;
-}
-
-.modalGrabberZone:active .modalGrabber {
-    background: rgba(255, 255, 255, 0.4);
+    transform: scale(0.88);
+    opacity: 0;
 }
 
 .modalHeader {
@@ -488,6 +465,8 @@ body::before {
     font-weight: 700;
     margin-bottom: 20px;
     letter-spacing: -0.3px;
+    width: 100%;
+    text-align: center;
 }
 
 .streakList {
@@ -495,6 +474,7 @@ body::before {
     overflow-y: auto;
     margin-bottom: 16px;
     scrollbar-width: none;
+    width: 100%;
 }
 .streakList::-webkit-scrollbar { display: none; }
 
@@ -509,6 +489,8 @@ body::before {
     cursor: pointer;
     transition: all 0.15s ease;
     border: 1.5px solid transparent;
+    text-align: left;
+    width: 100%;
 }
 
 .streakItem:active { transform: scale(0.97); }
@@ -556,7 +538,7 @@ body::before {
 }
 .deleteBtn:active { transform: scale(0.85); }
 
-.inputGroup { display: flex; gap: 10px; margin-bottom: 14px; }
+.inputGroup { display: flex; gap: 10px; margin-bottom: 14px; width: 100%; }
 
 #streakNameInput {
     flex: 1;
@@ -573,7 +555,7 @@ body::before {
 }
 #streakNameInput::placeholder { color: rgba(255, 255, 255, 0.3); }
 
-.btnGroup { display: flex; gap: 10px; }
+.btnGroup { display: flex; gap: 10px; width: 100%; }
 button { -webkit-appearance: none; appearance: none; outline: none; border: none; cursor: pointer; font-family: inherit; }
 
 .btn {
@@ -922,13 +904,19 @@ function goToDate(dateStr) {
 
     // Purely cosmetic: give the title a quick fade-in so the text swap
     // doesn't feel like a hard jump cut. This never blocks or delays
-    // anything above.
+    // anything above. Uses a double rAF -- the standard bulletproof
+    // pattern -- so the browser reliably paints the "invisible" state
+    // on one frame before the transition kicks in on the next. A single
+    // rAF is unreliable here and was the cause of the fade sometimes
+    // just not happening at all.
     const titleEl = document.getElementById('habitTitle');
     titleEl.style.transition = 'none';
     titleEl.style.opacity = '0';
     requestAnimationFrame(() => {
-        titleEl.style.transition = 'opacity 0.2s ease';
-        titleEl.style.opacity = '1';
+        requestAnimationFrame(() => {
+            titleEl.style.transition = 'opacity 0.2s ease';
+            titleEl.style.opacity = '1';
+        });
     });
 }
 
@@ -1109,7 +1097,6 @@ function showAddModal() {
     const modal = document.getElementById('modal');
     const content = document.getElementById('modalContent');
     content.innerHTML = `
-        <div class="modalGrabberZone" id="grabberZone1"><div class="modalGrabber"></div></div>
         <div class="modalHeader">New Streak</div>
         <div class="inputGroup">
             <input type="text" id="streakNameInput" placeholder="Streak name..." maxlength="40"
@@ -1122,7 +1109,9 @@ function showAddModal() {
     `;
     modal.classList.remove('closing');
     modal.classList.add('visible');
-    modal.classList.add('open');
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+        modal.classList.add('open');
+    }));
     const input = document.getElementById('streakNameInput');
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') createNewStreak();
@@ -1140,7 +1129,7 @@ function showAllModal() {
     const content = document.getElementById('modalContent');
     const list = Object.values(streaks).sort((a, b) => b.count - a.count);
 
-    let html = '<div class="modalGrabberZone" id="grabberZone2"><div class="modalGrabber"></div></div><div class="modalHeader">All Streaks</div><div class="streakList">';
+    let html = '<div class="modalHeader">All Streaks</div><div class="streakList">';
 
     if (list.length === 0) {
         html += '<div class="emptyState">No streaks yet.</div>';
@@ -1214,7 +1203,6 @@ function deleteStreak(id, event) {
 function showCantDeleteMessage() {
     const content = document.getElementById('modalContent');
     content.innerHTML = `
-        <div class="modalGrabberZone" id="grabberZone3"><div class="modalGrabber"></div></div>
         <div class="niceMessage">
             <div class="niceMessageIcon">
                 <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="#ff9f0a" stroke-width="1.8"/><path d="M12 7.5V13" stroke="#ff9f0a" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16.3" r="1.1" fill="#ff9f0a"/></svg>
@@ -1237,73 +1225,8 @@ function closeModal() {
     setTimeout(() => {
         modal.classList.remove('closing');
         modal.classList.remove('visible');
-    }, 320);
+    }, 280);
 }
-
-// --- Draggable grabber handle: follows your finger, snaps back or
-// dismisses the sheet depending on how far you dragged it down. ---
-(function setupGrabberDrag() {
-    const modal = document.getElementById('modal');
-    let dragging = false;
-    let startY = 0;
-    let currentY = 0;
-    let sheetEl = null;
-
-    modal.addEventListener('pointerdown', (e) => {
-        const zone = e.target.closest('.modalGrabberZone');
-        if (!zone) return;
-        sheetEl = document.getElementById('modalContent');
-        if (!sheetEl) return;
-
-        dragging = true;
-        startY = e.clientY;
-        currentY = 0;
-        sheetEl.style.transition = 'none';
-        zone.setPointerCapture(e.pointerId);
-    });
-
-    modal.addEventListener('pointermove', (e) => {
-        if (!dragging || !sheetEl) return;
-        const delta = e.clientY - startY;
-        currentY = Math.max(0, delta); // only allow dragging downward
-        sheetEl.style.transform = `translateY(${currentY}px)`;
-
-        // Dim the backdrop proportionally as the sheet is dragged down.
-        const dragFraction = Math.min(currentY / 400, 1);
-        modal.style.background = `rgba(0, 0, 0, ${0.5 * (1 - dragFraction)})`;
-        modal.style.backdropFilter = `blur(${10 * (1 - dragFraction)}px)`;
-    });
-
-    function endDrag() {
-        if (!dragging || !sheetEl) return;
-        dragging = false;
-        const el = sheetEl;
-        el.style.transition = 'transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)';
-
-        const dismissThreshold = 120; // px dragged down before we close the sheet
-        if (currentY > dismissThreshold) {
-            closeModal();
-            // closeModal drives its own transform via CSS classes; clear our
-            // inline override once that transition would have finished.
-            setTimeout(() => { el.style.transform = ''; el.style.transition = ''; }, 340);
-        } else {
-            // Snap back to open position, then clear the inline override
-            // so the sheet's normal CSS classes take over cleanly.
-            el.style.transform = 'translateY(0)';
-            setTimeout(() => { el.style.transform = ''; el.style.transition = ''; }, 340);
-        }
-
-        sheetEl = null;
-        currentY = 0;
-        setTimeout(() => {
-            modal.style.background = '';
-            modal.style.backdropFilter = '';
-        }, 340);
-    }
-
-    modal.addEventListener('pointerup', endDrag);
-    modal.addEventListener('pointercancel', endDrag);
-})();
 
 document.getElementById('modal').addEventListener('click', (e) => {
     if (e.target === document.getElementById('modal')) closeModal();
