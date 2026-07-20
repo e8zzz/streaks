@@ -229,6 +229,34 @@ body::before {
     justify-content: center;
     width: 100%;
     position: relative;
+    overflow: hidden;
+}
+
+.dayTransitionGroup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.22s ease;
+}
+
+.dayTransitionGroup.slideOutLeft {
+    transform: translateX(-36px);
+    opacity: 0;
+}
+
+.dayTransitionGroup.slideOutRight {
+    transform: translateX(36px);
+    opacity: 0;
+}
+
+.dayTransitionGroup.slideInFromLeft {
+    transform: translateX(-36px);
+    opacity: 0;
+}
+
+.dayTransitionGroup.slideInFromRight {
+    transform: translateX(36px);
+    opacity: 0;
 }
 
 .mainCircle {
@@ -413,8 +441,7 @@ body::before {
     align-items: center;
     justify-content: center;
     z-index: 100;
-    backdrop-filter: blur(0px);
-    transition: background 0.25s ease, backdrop-filter 0.25s ease;
+    transition: background 0.25s ease;
     padding: 24px;
 }
 
@@ -425,13 +452,11 @@ body::before {
 }
 
 #modal.open {
-    background: rgba(0, 0, 0, 0.55);
-    backdrop-filter: blur(14px);
+    background: rgba(0, 0, 0, 0.7);
 }
 
 #modal.closing {
     background: rgba(0, 0, 0, 0);
-    backdrop-filter: blur(0px);
 }
 
 .modalContent {
@@ -688,14 +713,16 @@ button { -webkit-appearance: none; appearance: none; outline: none; border: none
         </div>
 
         <div class="circleWrap">
-            <div class="mainCircle" id="mainCircle">
-                <svg class="progressRing" id="progressRing" viewBox="0 0 260 260">
-                    <circle class="progressRingBg" cx="130" cy="130" r="127"></circle>
-                    <circle class="progressRingFg" id="progressRingFg" cx="130" cy="130" r="127"></circle>
-                </svg>
-                <div class="circleLabel" id="circleLabel"></div>
-                <div class="checkWrap">
-                    <svg viewBox="0 0 24 24" fill="none"><path d="M6.48 12.72L9.84 16.08L17.52 5.76" stroke="#0a0a0a" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div class="dayTransitionGroup" id="dayTransitionGroup">
+                <div class="mainCircle" id="mainCircle">
+                    <svg class="progressRing" id="progressRing" viewBox="0 0 260 260">
+                        <circle class="progressRingBg" cx="130" cy="130" r="127"></circle>
+                        <circle class="progressRingFg" id="progressRingFg" cx="130" cy="130" r="127"></circle>
+                    </svg>
+                    <div class="circleLabel" id="circleLabel"></div>
+                    <div class="checkWrap">
+                        <svg viewBox="0 0 24 24" fill="none"><path d="M6.48 12.72L9.84 16.08L17.52 5.76" stroke="#0a0a0a" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
                 </div>
             </div>
         </div>
@@ -895,26 +922,42 @@ function goToDate(dateStr) {
     // interfere with the new day's state.
     cancelHold();
 
-    // Update state and render immediately -- never delay the actual
-    // state change, since a delayed update is exactly what caused the
-    // "have to tap twice" bug (holding the circle while viewingDate was
-    // still stale from the previous day).
+    // Figure out direction: comparing the actual calendar dates (using
+    // 'today' as a stand-in for null) tells us whether we're moving to
+    // an earlier or later day, so the slide direction always matches
+    // the direction you tapped in the day row.
+    const fromDate = viewingDate || todayStr();
+    const toDate = dateStr || todayStr();
+    const movingForward = toDate > fromDate;
+
+    // Update state and render IMMEDIATELY -- this must never be delayed.
+    // A delayed state update is exactly what caused the earlier
+    // "have to tap the circle twice" bug (holding it while viewingDate
+    // was still stale from the previous day). Everything below this
+    // line is purely a visual flourish layered on top of an already
+    //-correct, already-rendered state.
     viewingDate = dateStr; // null means today
     renderMain();
 
-    // Purely cosmetic: give the title a quick fade-in so the text swap
-    // doesn't feel like a hard jump cut. This never blocks or delays
-    // anything above. Uses a double rAF -- the standard bulletproof
-    // pattern -- so the browser reliably paints the "invisible" state
-    // on one frame before the transition kicks in on the next. A single
-    // rAF is unreliable here and was the cause of the fade sometimes
-    // just not happening at all.
+    // Purely cosmetic slide-in: snap the group to the entry position
+    // (no transition), then animate it into place. Uses double rAF so
+    // the browser reliably paints the "snapped" frame before the
+    // transition is reapplied -- a single rAF was unreliable here.
+    const group = document.getElementById('dayTransitionGroup');
     const titleEl = document.getElementById('habitTitle');
+
+    group.style.transition = 'none';
+    group.style.transform = movingForward ? 'translateX(28px)' : 'translateX(-28px)';
+    group.style.opacity = '0';
     titleEl.style.transition = 'none';
     titleEl.style.opacity = '0';
+
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-            titleEl.style.transition = 'opacity 0.2s ease';
+            group.style.transition = 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.26s ease';
+            group.style.transform = 'translateX(0)';
+            group.style.opacity = '1';
+            titleEl.style.transition = 'opacity 0.22s ease';
             titleEl.style.opacity = '1';
         });
     });
