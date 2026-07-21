@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Streaks</title>
 <meta name="theme-color" content="#161616">
 <link rel="manifest" href="./manifest.json">
@@ -36,7 +36,8 @@ button, .mainCircle, .mainCircle *, .dayBadge, .dayBadge *, .iconBtn, .iconBtn *
 
 html, body {
     width: 100%;
-    height: 100%;
+    height: 100vh;
+    height: 100dvh;
     background: #161616;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
     overflow: hidden;
@@ -63,7 +64,8 @@ body::before {
 
 #app {
     width: 100%;
-    height: 100%;
+    height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     position: relative;
@@ -984,19 +986,28 @@ function renderMain() {
 
     const circle = document.getElementById('mainCircle');
     const completed = isViewedDateCompleted();
+
+    // Toggle the class that drives the checkmark's pop-in animation on
+    // its own, before any other heavier DOM work runs. Bundling this
+    // with the ring reset and day-row rebuild in the same synchronous
+    // tick was exactly why the checkmark animation sometimes silently
+    // failed to play -- under load, browsers can skip a CSS transition
+    // if a lot of other layout/paint work is queued in the same frame.
     circle.classList.toggle('completed', completed);
     titleEl.classList.toggle('done', completed);
 
-    const ringFg = document.getElementById('progressRingFg');
-    if (ringFg) {
-        ringFg.style.strokeDasharray = RING_CIRCUMFERENCE;
-        ringFg.style.strokeDashoffset = RING_CIRCUMFERENCE;
-    }
+    requestAnimationFrame(() => {
+        const ringFg = document.getElementById('progressRingFg');
+        if (ringFg) {
+            ringFg.style.strokeDasharray = RING_CIRCUMFERENCE;
+            ringFg.style.strokeDashoffset = RING_CIRCUMFERENCE;
+        }
 
-    const streakLine = document.getElementById('streakCountLine');
-    streakLine.style.opacity = isToday ? '1' : '0';
+        const streakLine = document.getElementById('streakCountLine');
+        streakLine.style.opacity = isToday ? '1' : '0';
 
-    renderDayRow();
+        renderDayRow();
+    });
 }
 
 function completeHold() {
