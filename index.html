@@ -1365,10 +1365,18 @@ loadData();
 initializeIfEmpty();
 renderMain();
 
+// This app doesn't need offline caching badly enough to be worth the
+// headaches a service worker causes (serving stale HTML/CSS/JS after
+// every update, even in a normal Safari tab). Actively unregister any
+// service worker and wipe its caches so the browser always fetches the
+// real, current files from GitHub Pages.
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
+    navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(reg => reg.unregister());
     });
+}
+if (window.caches) {
+    caches.keys().then(names => names.forEach(name => caches.delete(name)));
 }
 
 setInterval(renderMain, 60000);
