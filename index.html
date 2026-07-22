@@ -1147,6 +1147,28 @@ document.getElementById('allBtn').addEventListener('click', () => {
     showAllModal();
 });
 
+// --- Keyboard / focus cleanup -------------------------------------------
+// iOS reserves screen space for the keyboard (and its autofill/QuickType
+// accessory bar) whenever a text input has focus. If that input gets
+// removed from the DOM (innerHTML swap) or the modal is dismissed while
+// it still has focus, iOS can leave that reserved space behind as a
+// grey strip pinned near the bottom/home-indicator area, and it keeps
+// reappearing on every modal you open afterwards. Forcing a blur (and a
+// scroll reset) any time we're about to close a modal or wipe its
+// content guarantees iOS actually releases that space.
+function forceUnfocus() {
+    if (document.activeElement && document.activeElement !== document.body && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+    }
+    window.scrollTo(0, 0);
+}
+
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', () => {
+        window.scrollTo(0, 0);
+    });
+}
+
 function showAddModal() {
     const modal = document.getElementById('modal');
     const content = document.getElementById('modalContent');
@@ -1180,6 +1202,11 @@ function showAddModal() {
 }
 
 function showAllModal() {
+    // Always release any lingering keyboard/focus state from a previous
+    // modal (e.g. the streak-name input) before building this one, so
+    // the reserved keyboard space never leaks into an unrelated modal.
+    forceUnfocus();
+
     const modal = document.getElementById('modal');
     const content = document.getElementById('modalContent');
     const list = Object.values(streaks).sort((a, b) => b.count - a.count);
@@ -1220,6 +1247,7 @@ function showAllModal() {
 }
 
 function selectStreak(id) {
+    forceUnfocus();
     currentStreakId = id;
     viewingDate = null;
     saveData();
@@ -1231,6 +1259,7 @@ function createNewStreak() {
     const input = document.getElementById('streakNameInput');
     const name = input.value.trim();
     if (!name) return;
+    forceUnfocus();
     const id = Date.now().toString();
     streaks[id] = { id, name, count: 0, createdAt: new Date().toISOString(), completedDays: [] };
     currentStreakId = id;
@@ -1272,6 +1301,7 @@ function showCantDeleteMessage() {
 }
 
 function closeModal() {
+    forceUnfocus();
     const modal = document.getElementById('modal');
     if (!modal.classList.contains('open')) return;
     modal.classList.remove('open');
