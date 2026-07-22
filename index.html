@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Streaks</title>
 <meta name="theme-color" content="#161616">
+<meta name="color-scheme" content="dark">
 <link rel="manifest" href="./manifest.json">
 <link rel="apple-touch-icon" href="./icon.png">
 <link rel="icon" type="image/png" href="./icon.png">
@@ -1167,6 +1168,27 @@ if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', () => {
         window.scrollTo(0, 0);
     });
+}
+
+// --- Lock page height to the real visual viewport, in pixels --------
+// html/body use `height: 100vh/100dvh` in the stylesheet as a fallback,
+// but on iOS standalone PWAs those units don't reliably track the
+// visual viewport once a text input takes (or releases) focus -- the
+// page's own box can end up shorter than the actual screen, and the
+// sliver of screen below it shows WebKit's native page background
+// instead of ours. Setting an explicit pixel height via JS (which wins
+// over the CSS vh/dvh rule) and keeping it in sync with
+// visualViewport.height closes that gap for good, keyboard or no
+// keyboard.
+function lockAppHeight() {
+    const h = Math.round(window.visualViewport ? window.visualViewport.height : window.innerHeight);
+    document.documentElement.style.height = h + 'px';
+    document.body.style.height = h + 'px';
+}
+lockAppHeight();
+window.addEventListener('resize', lockAppHeight);
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', lockAppHeight);
 }
 
 function showAddModal() {
