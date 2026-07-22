@@ -435,6 +435,17 @@ body::before {
     animation: burst 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+#bottomShield {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: calc(env(safe-area-inset-bottom, 0px) + 34px);
+    background: #161616;
+    z-index: 99999;
+    pointer-events: none;
+}
+
 /* Modal (settings / all streaks) */
 #modal {
     position: fixed;
@@ -699,6 +710,22 @@ button { -webkit-appearance: none; appearance: none; outline: none; border: none
 }
 .detailCircle.completed .detailCheckWrap { opacity: 1; transform: scale(1); }
 .detailCheckWrap svg { width: 100%; height: 100%; }
+
+/* Solid cover for the home-indicator safe area. iOS sometimes paints
+   its own grey strip there regardless of our page's own background --
+   this sits on top of literally everything (higher z-index than the
+   modal) in the exact same color as the page, so whatever iOS draws
+   underneath it is physically hidden rather than fought with. */
+#bottomSafeCover {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: max(40px, env(safe-area-inset-bottom));
+    background: #161616;
+    z-index: 9999;
+    pointer-events: none;
+}
 </style>
 </head>
 <body>
@@ -738,6 +765,7 @@ button { -webkit-appearance: none; appearance: none; outline: none; border: none
     </div>
 </div>
 
+<div id="bottomShield"></div>
 <div id="modal">
     <div class="modalContent" id="modalContent"></div>
 </div>
