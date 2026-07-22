@@ -1154,7 +1154,7 @@ function showAddModal() {
         <div class="modalHeader">New Streak</div>
         <div class="inputGroup">
             <input type="text" id="streakNameInput" placeholder="Streak name..." maxlength="40"
-                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" autofocus>
+                autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
         </div>
         <div class="btnGroup">
             <button class="btn btnSecondary" onclick="closeModal()">Cancel</button>
@@ -1170,12 +1170,13 @@ function showAddModal() {
     input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') createNewStreak();
     });
-    // Note: we deliberately do NOT call input.focus() here.
-    // On iOS standalone PWAs, JS-triggered .focus() is unreliable even when
-    // synchronous, because the click on the "+" button is a *different* tap
-    // than the one landing on the input. The autofocus attribute above lets
-    // the browser itself handle it natively, and tapping the field directly
-    // always works since that's a genuine, direct user gesture on the input.
+    // Deliberately no autofocus and no input.focus() call here.
+    // autofocus was the actual cause of the grey bar stuck at the bottom
+    // of the screen: it makes iOS reserve space for the keyboard's
+    // accessory view the instant the input is inserted, but standalone
+    // PWA focus is unreliable, so the keyboard itself often never shows
+    // up -- leaving that reserved grey strip empty and visible. Tapping
+    // the field directly is a genuine user gesture and always works.
 }
 
 function showAllModal() {
